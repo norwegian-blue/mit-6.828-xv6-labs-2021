@@ -127,6 +127,14 @@ found:
     return 0;
   }
 
+  // Allocate and initialize a page for usyscall
+  if((p->sharedmem = (struct usyscall *)kalloc()) == 0){
+    freeproc(p);
+    release(&p->lock);
+    return 0;
+  }
+  p->sharedmem->pid = p->pid;
+
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
   if(p->pagetable == 0){
@@ -153,6 +161,9 @@ freeproc(struct proc *p)
   if(p->trapframe)
     kfree((void*)p->trapframe);
   p->trapframe = 0;
+  if(p->sharedmem)
+    kfree((void*)p->sharedmem);
+  p->sharedmem = 0;
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
   p->pagetable = 0;
@@ -196,6 +207,12 @@ proc_pagetable(struct proc *p)
     return 0;
   }
 
+  // map one read only USYSCALL pagetable for fast system call speedup (getpid)
+  if(mappages(pagetable, USYSCALL, PGSIZE,
+              (uint64)(p->sharedmem), PTE_U | PTE_R) < 0){
+    uvmfree(pagetable, 0);
+  }
+
   return pagetable;
 }
 
@@ -206,6 +223,7 @@ proc_freepagetable(pagetable_t pagetable, uint64 sz)
 {
   uvmunmap(pagetable, TRAMPOLINE, 1, 0);
   uvmunmap(pagetable, TRAPFRAME, 1, 0);
+  uvmunmap(pagetable, USYSCALL, 1, 0);
   uvmfree(pagetable, sz);
 }
 
