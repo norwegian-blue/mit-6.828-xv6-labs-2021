@@ -80,8 +80,41 @@ sys_sleep(void)
 int
 sys_pgaccess(void)
 {
-  // lab pgtbl: your code here.
+  // starting virtual address
+  uint64 v0;
+  if (argaddr(0, &v0) < 0) {
+    return -1;
+  }
+
+  // # of pages to check
+  int n;
+  if (argint(1, &n) < 0) {
+    return -1;
+  }
+
+  // accessed pages bitmask return virtual address
+  uint64 p;
+  if (argaddr(2, &p) < 0) {
+    return -1;
+  }
+
+  // get accessed tables
+  uint64 bmask = 0;
+  for (int i = 0; i < n; i++) {
+    pte_t *pte = walk(myproc()->pagetable, v0+i*PGSIZE, 0);
+    if (*pte & PTE_A){
+      bmask |= (1L << i);
+    }
+    *pte &= ~PTE_A;
+  }
+
+  // copy back to userspace
+  if (copyout(myproc()->pagetable, p, (char*)&bmask, sizeof(bmask)) < 0) {
+    return -1;
+  }
+
   return 0;
+  
 }
 #endif
 
