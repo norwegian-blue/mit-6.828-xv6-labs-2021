@@ -180,6 +180,7 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
       panic("uvmunmap: not a leaf");
     if(do_free){
       uint64 pa = PTE2PA(*pte);
+      decreasepagecount(pa);
       kfree((void*)pa);
     }
     *pte = 0;
@@ -324,6 +325,7 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     if(mappages(new, i, PGSIZE, (uint64)pa, flags) != 0){
       goto err;
     }
+    increasepagecount(pa);
   }
   return 0;
 
@@ -437,3 +439,38 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     return -1;
   }
 }
+
+
+// Copy On Write
+// Given a process trying to write to a COW memory location,
+// allocate new memory for the process, copy the content of
+// the faulty page and update process pagetable.
+// Returns 0 on success, -2 if memory is not marked for COW,
+// -1 if cannot allocate additional memory.
+int
+uvmcow(pagetable_t pagetable, uint64 va)
+{
+  pte_t *pte;
+  uint64 pa;
+  char *mem;
+
+  // check if COW fault
+  pte = walk(pagetable, va, 0);
+  if (!(*pte & PTE_C)) {
+    return -1;
+  }
+
+  // allocate new memory and duplicate page content
+  pa = PTE2PA(*pte); 
+  if ((mem = kalloc()) == 0) {
+    return -1;
+  }
+  memmove(mem, (char*)pa, PGSIZE);  
+
+  // Remap process memory to write page
+  *pte = PA2PTE(mem) | PTE_FLAGS(*pte);
+  *pte |= PTE_W;   // mark as write
+  *pte &= ~PTE_C;  // remove COW mark
+
+  return 0;
+} 
