@@ -356,7 +356,9 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
-    uvmcow(pagetable, va0);   // try copy on write if necessary (if PTE_C not set won't do anything)
+    if (uvmcow(pagetable, va0) == -1) {   // try copy on write if necessary (if PTE_C not set won't do anything)
+      return -1;
+    }
     pa0 = walkaddr(pagetable, va0);
     if(pa0 == 0)
       return -1;
@@ -454,14 +456,20 @@ uvmcow(pagetable_t pagetable, uint64 va)
   uint64 pa;
   char *mem;
 
+  if (va >= MAXVA) {
+    return -1;
+  }
+
   // check if COW fault
   pte = walk(pagetable, va, 0);
-  if ((*pte & PTE_C) == 0) {
+  if (pte == 0) {
     return -1;
   } else if ((*pte & PTE_V) == 0) {
     return -1;
   } else if ((*pte & PTE_U) == 0) {
     return -1;
+  } else if ((*pte & PTE_C) == 0) {
+    return -2;
   }
 
   // remove COW if only one reference left
