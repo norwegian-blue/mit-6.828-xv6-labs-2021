@@ -53,8 +53,11 @@ kfree(void *pa)
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
   
-  // Skip if page counter is not zero (COW still in use)
-  if (kmem.pagecount[PGCOUNT(pa)]) {
+  // Decrease page counter and skip if page counter is not zero (COW page still in use)
+  acquire(&kmem.lock);
+  kmem.pagecount[PGCOUNT(pa)]--;
+  if (kmem.pagecount[PGCOUNT(pa)] > 0) {
+    release(&kmem.lock);
     return;
   }
 
@@ -63,7 +66,6 @@ kfree(void *pa)
 
   r = (struct run*)pa;
 
-  acquire(&kmem.lock);
   r->next = kmem.freelist;
   kmem.freelist = r;
   release(&kmem.lock);
@@ -79,16 +81,15 @@ kalloc(void)
 
   acquire(&kmem.lock);
   r = kmem.freelist;
-  if(r)
+  if(r) {
     kmem.freelist = r->next;
+    kmem.pagecount[PGCOUNT((void*)r)] = 1;
+  }
   release(&kmem.lock);
 
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk
 
-  // set page counter
-  kmem.pagecount[PGCOUNT((void*)r)] = 1;
-    
   return (void*)r;
 }
 
@@ -96,7 +97,9 @@ kalloc(void)
 void
 increasepagecount(uint64 pa)
 {
+  acquire(&kmem.lock);
   kmem.pagecount[PGCOUNT(pa)]++;
+  release(&kmem.lock);
 }
 
 // decrease the page counter for the specified physical address

@@ -180,7 +180,6 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
       panic("uvmunmap: not a leaf");
     if(do_free){
       uint64 pa = PTE2PA(*pte);
-      decreasepagecount(pa);
       kfree((void*)pa);
     }
     *pte = 0;
@@ -354,6 +353,7 @@ int
 copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 {
   uint64 n, va0, pa0;
+  pte_t *pte;
 
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
@@ -363,6 +363,11 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
     n = PGSIZE - (dstva - va0);
     if(n > len)
       n = len;
+    // check if writing to COW destination and duplicate address if needed
+    pte = walk(pagetable, va0, 0);
+    if (*pte & PTE_C) {
+      uvmcow(pagetable, va0);
+    } 
     memmove((void *)(pa0 + (dstva - va0)), src, n);
 
     len -= n;
