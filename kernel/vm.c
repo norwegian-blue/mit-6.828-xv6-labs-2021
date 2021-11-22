@@ -454,10 +454,6 @@ uvmcow(pagetable_t pagetable, uint64 va)
   uint64 pa;
   char *mem;
 
-  if (va > MAXVA) {
-    return -1;
-  }
-
   // check if COW fault
   pte = walk(pagetable, va, 0);
   if ((*pte & PTE_C) == 0) {
