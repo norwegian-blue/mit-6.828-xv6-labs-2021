@@ -111,3 +111,10 @@ decreasepagecount(uint64 pa)
     panic("cow page reference < 0");
   }
 }
+
+// count the number of page references to a specific physical address
+int
+countpagerefs(uint64 pa)
+{
+  return kmem.pagecount[PGCOUNT(pa)];
+}

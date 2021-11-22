@@ -353,21 +353,16 @@ int
 copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 {
   uint64 n, va0, pa0;
-  pte_t *pte;
 
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
+    uvmcow(pagetable, va0);   // try copy on write if necessary (if PTE_C not set won't do anything)
     pa0 = walkaddr(pagetable, va0);
     if(pa0 == 0)
       return -1;
     n = PGSIZE - (dstva - va0);
     if(n > len)
       n = len;
-    // check if writing to COW destination and duplicate address if needed
-    pte = walk(pagetable, va0, 0);
-    if (*pte & PTE_C) {
-      uvmcow(pagetable, va0);
-    } 
     memmove((void *)(pa0 + (dstva - va0)), src, n);
 
     len -= n;
@@ -459,18 +454,34 @@ uvmcow(pagetable_t pagetable, uint64 va)
   uint64 pa;
   char *mem;
 
-  // check if COW fault
-  pte = walk(pagetable, va, 0);
-  if (!(*pte & PTE_C)) {
+  if (va > MAXVA) {
     return -1;
   }
 
-  // allocate new memory and duplicate page content
+  // check if COW fault
+  pte = walk(pagetable, va, 0);
+  if ((*pte & PTE_C) == 0) {
+    return -1;
+  } else if ((*pte & PTE_V) == 0) {
+    return -1;
+  } else if ((*pte & PTE_U) == 0) {
+    return -1;
+  }
+
+  // remove COW if only one reference left
   pa = PTE2PA(*pte); 
+  if (countpagerefs(pa) == 1) {
+    *pte &= ~PTE_C;
+    *pte |= PTE_W;
+    return 0;
+  }
+
+  // allocate new memory and duplicate page content
   if ((mem = kalloc()) == 0) {
     return -1;
   }
   memmove(mem, (char*)pa, PGSIZE);  
+  kfree((void*)pa);     // decrease counter to duplicated page
 
   // Remap process memory to write page
   *pte = PA2PTE(mem) | PTE_FLAGS(*pte);

@@ -70,8 +70,6 @@ usertrap(void)
   } else if (r_scause() == 15) {
     // Copy On Write
     if (uvmcow(p->pagetable, r_stval()) != 0) {
-      printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
-      printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
       p->killed = 1;
     }
   } else {
@@ -80,8 +78,9 @@ usertrap(void)
     p->killed = 1;
   }
 
-  if(p->killed)
+  if(p->killed) {
     exit(-1);
+  }
 
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2)
