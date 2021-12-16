@@ -19,7 +19,7 @@ static struct mbuf *rx_mbufs[RX_RING_SIZE];
 // remember where the e1000's registers live.
 static volatile uint32 *regs;
 
-struct spinlock e1000_lock;
+struct spinlock e1000_lock, e1000_lock_recv;
 
 // called by pci_init().
 // xregs is the memory address at which the
@@ -30,6 +30,7 @@ e1000_init(uint32 *xregs)
   int i;
 
   initlock(&e1000_lock, "e1000");
+  initlock(&e1000_lock_recv, "e1000_recv");
 
   regs = xregs;
 
@@ -144,6 +145,34 @@ e1000_recv(void)
   // Check for packets that have arrived from the e1000
   // Create and deliver an mbuf for each packet (using net_rx()).
   //
+  while(1) {
+    acquire(&e1000_lock_recv);
+
+    // Get RX ring index
+    uint32 index = (regs[E1000_RDT]+1) % RX_RING_SIZE;
+    uint32 head = regs[E1000_RDH];
+
+    // Return if no new packet available or if buffer is full
+    if ((index == head) || !(rx_ring[index].status & E1000_RXD_STAT_DD)) {
+      release(&e1000_lock_recv);
+      return;
+    }
+  
+    // Update packet length and deliver to net
+    rx_mbufs[index]->len = rx_ring[index].length;
+    net_rx(rx_mbufs[index]);
+
+    // Allocate new buffer for next package
+    rx_mbufs[index] = mbufalloc(0);
+    if (!rx_mbufs[index]) {
+      panic("e1000");
+    }
+    rx_ring[index].addr = (uint64) rx_mbufs[index]->head;
+    rx_ring[index].status &= ~E1000_RXD_STAT_DD;
+    regs[E1000_RDT] = index;
+
+    release(&e1000_lock_recv);
+  }
 }
 
 void
