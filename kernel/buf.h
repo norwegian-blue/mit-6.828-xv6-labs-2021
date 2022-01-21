@@ -8,5 +8,9 @@ struct buf {
   struct buf *prev; // LRU cache list
   struct buf *next;
   uchar data[BSIZE];
+  uint stamp;
 };
 
+#define NBUCKETS 13
+
+#define hashfun(n) ((n) % NBUCKETS)
