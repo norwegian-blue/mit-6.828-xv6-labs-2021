@@ -131,6 +131,14 @@ test0()
   for(int i = 0; i < NCHILD; i++){
     wait(0);
   }
+  
+  unlink("0/F");
+  unlink("1/F");
+  unlink("2/F");
+  unlink("0");
+  unlink("1");
+  unlink("2");
+
   printf("test0 results:\n");
   n = ntas(1);
   if (n-m < 500)
