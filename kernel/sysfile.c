@@ -290,7 +290,7 @@ sys_open(void)
   int fd, omode;
   struct file *f;
   struct inode *ip;
-  int n;
+  int n, i;
 
   if((n = argstr(0, path, MAXPATH)) < 0 || argint(1, &omode) < 0)
     return -1;
@@ -313,6 +313,33 @@ sys_open(void)
       iunlockput(ip);
       end_op();
       return -1;
+    }
+  }
+
+  // resolve symbolic links --> loops until non symbolic link is found or too many iterations
+  if(ip->type == T_SYMLINK && !(omode & O_NOFOLLOW)){
+    i = 0;
+    while(1){
+      // get link name
+      readi(ip, 0, (uint64)&path, 0, sizeof(path));
+      iunlockput(ip);
+
+      // open next link
+      if((ip = namei(path)) == 0){
+        end_op();
+        return -1;
+      }
+      ilock(ip);
+
+      if (ip->type != T_SYMLINK)
+        break;
+
+      // return error after too many loops
+      if (i++ > 10) {
+        iunlock(ip);
+        end_op();
+        return -1;
+      }
     }
   }
 
