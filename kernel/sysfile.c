@@ -484,3 +484,17 @@ sys_pipe(void)
   }
   return 0;
 }
+
+uint64
+sys_mmap(void)
+{
+  panic("unimplemented mmap");
+  return 0;
+}
+
+uint64
+sys_munmap(void)
+{
+  panic("unimplemented mmap");
+  return 0;
+}
