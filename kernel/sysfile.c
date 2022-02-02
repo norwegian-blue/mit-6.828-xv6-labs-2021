@@ -485,11 +485,45 @@ sys_pipe(void)
   return 0;
 }
 
+int
+vmaalloc(struct proc *p)
+{
+  int i;
+  for(i = 0; i < NOMMAP; i++){
+    if(p->vma[i].addr == 0)
+      return i;
+  }
+  return -1;
+}
+
 uint64
 sys_mmap(void)
 {
-  panic("unimplemented mmap");
-  return 0;
+  struct proc *p = myproc();
+  struct file *f;
+  int len, prot, flags, fd, vma;
+
+  if ((argint(1, &len) < 0) || (argint(2, &prot) < 0) ||
+      (argint(3, &flags) < 0) || (argint(4, &fd) < 0))
+    return -1;
+
+  if((f = p->ofile[fd]) < 0)
+    return -1;
+  filedup(f);
+
+  // Add VMA to the process table
+  if((vma = vmaalloc(p)) < 0)
+    return -1;
+  p->vma[vma].addr = p->sz;
+  p->vma[vma].len = len;
+  p->vma[vma].prot = prot;
+  p->vma[vma].flags = flags;
+  p->vma[vma].f = f;
+
+  // Adjust process size (lazily allocates the memory)
+  p->sz += len;
+
+  return p->vma[vma].addr;
 }
 
 uint64
