@@ -516,12 +516,18 @@ sys_mmap(void)
     return -1;
   p->vma[vma].addr = p->sz;
   p->vma[vma].len = len;
-  p->vma[vma].prot = prot;
   p->vma[vma].flags = flags;
   p->vma[vma].f = f;
 
+  // Set protection flags
+  p->vma[vma].prot = PTE_U;
+  if(prot & PROT_READ)
+    p->vma[vma].prot |= PTE_R;
+  if(prot & PROT_WRITE)
+    p->vma[vma].prot |= PTE_W;
+
   // Adjust process size (lazily allocates the memory)
-  p->sz += len;
+  p->sz += PGROUNDUP(len);
 
   return p->vma[vma].addr;
 }
@@ -529,6 +535,6 @@ sys_mmap(void)
 uint64
 sys_munmap(void)
 {
-  panic("unimplemented mmap");
+  panic("unimplemented munmap");
   return 0;
 }

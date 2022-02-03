@@ -5,6 +5,10 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
+#include "spinlock.h"
+#include "sleeplock.h"
+#include "proc.h"
+#include "file.h"
 
 /*
  * the kernel's page table.
@@ -431,4 +435,44 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+
+
+// Allocate a page of physical memory, read 4096 bytes from the file, and map it into the user space.
+int
+uvmmmap(uint64 va)
+{
+  int vma = 0;
+  struct proc *p = myproc();
+  char *mem;
+  struct file *f;
+
+  // Check if va belongs to mmap-ed region
+  while(1){
+    if (vma >= NOMMAP)
+      panic("mmap: trying to memory map an address outside VMA region");
+
+    if((p->vma[vma].addr <= va) && ((p->vma[vma].addr + p->vma[vma].len) > va))
+      break;
+
+    vma++;
+  }
+
+  // Allocate a page and map it to user space
+  mem = kalloc();
+  memset(mem, 0, PGSIZE);
+  if(mem == 0)
+    return 0;
+  if(mappages(p->pagetable, va, PGSIZE, (uint64)mem, p->vma[vma].prot) != 0){
+    kfree(mem);
+    return 0;
+  }
+
+  // Copy one page from file to VMA
+  f = p->vma[vma].f;
+  ilock(f->ip);
+  readi(f->ip, 0, (uint64)mem, PGROUNDDOWN(va - p->vma[vma].addr), PGSIZE);
+  iunlock(f->ip);
+
+  return 1;
 }
