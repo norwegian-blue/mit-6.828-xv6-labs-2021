@@ -305,6 +305,13 @@ fork(void)
 
   pid = np->pid;
 
+  // pass VMA to child process
+  memmove(np->vma, p->vma, sizeof(p->vma));
+  for(int i = 0; i < NOMMAP; i++){
+    if(np->vma[i].addr)
+      filedup(np->vma[i].f);
+  }
+
   release(&np->lock);
 
   acquire(&wait_lock);
