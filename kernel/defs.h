@@ -139,6 +139,9 @@ int             fetchstr(uint64, char*, int);
 int             fetchaddr(uint64, uint64*);
 void            syscall();
 
+// sysfile.c 
+void            munmap(struct proc*, int, uint64, uint64);
+
 // trap.c
 extern uint     ticks;
 void            trapinit(void);
@@ -171,6 +174,7 @@ int             copyout(pagetable_t, uint64, char *, uint64);
 int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
 int             uvmmmap(uint64);
+int             getvma(uint64);
 
 // plic.c
 void            plicinit(void);

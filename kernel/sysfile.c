@@ -511,6 +511,9 @@ sys_mmap(void)
     return -1;
   filedup(f);
 
+  if((prot & PROT_WRITE) && (flags & MAP_SHARED) && (f->writable == 0))
+    return -1;
+
   // Add VMA to the process table
   if((vma = vmaalloc(p)) < 0)
     return -1;
@@ -535,6 +538,29 @@ sys_mmap(void)
 uint64
 sys_munmap(void)
 {
-  panic("unimplemented munmap");
+  int len, vma;
+  uint64 addr, start, end;
+  struct proc *p = myproc();
+
+  if((argaddr(0, &addr) < 0) || (argint(1, &len) < 0))
+    return -1;
+  
+  start = PGROUNDDOWN(addr);
+  end = PGROUNDUP(addr + len);
+
+  if((vma = getvma(addr)) < 0)
+    return -1;
+  
+  munmap(p, vma, start, (end-start));
+
   return 0;
+}
+
+void
+munmap(struct proc *p, int vma, uint64 start, uint64 len)
+{
+  if(p->vma[vma].flags & MAP_SHARED)
+    filewrite(p->vma[vma].f, start, len);
+
+  uvmunmap(p->pagetable, start, len, 0);
 }

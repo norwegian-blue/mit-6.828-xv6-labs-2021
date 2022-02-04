@@ -344,6 +344,15 @@ exit(int status)
   if(p == initproc)
     panic("init exiting");
 
+  // Close all VMAs
+  for(int i = 0; i < NOMMAP; i++){
+    if(p->vma[i].addr > 0){
+      munmap(p, i, p->vma[i].addr, p->vma[i].len);
+      fileclose(p->vma[i].f);
+      memset(&p->vma[i], 0, sizeof(struct vma));
+    }
+  }
+
   // Close all open files.
   for(int fd = 0; fd < NOFILE; fd++){
     if(p->ofile[fd]){
