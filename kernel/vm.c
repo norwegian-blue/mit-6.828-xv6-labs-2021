@@ -453,7 +453,7 @@ uvmmmap(uint64 va)
 
   // Check if va belongs to mmap-ed region
   if ((vma = getvma(va)) < 0)
-    return -1;
+    return 0;
 
   // Allocate a page and map it to user space
   mem = kalloc();
